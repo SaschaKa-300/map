@@ -5,7 +5,7 @@ import folium
 from geopy.geocoders import Nominatim
 
 def geocode_address(address):
-    geolocator = Nominatim(user_agent="geo_app", timeout=10)  # Increase timeout
+    geolocator = Nominatim(user_agent="geo_app", timeout=10)
     try:
         location = geolocator.geocode(address)
         if location:
@@ -13,7 +13,6 @@ def geocode_address(address):
     except Exception as e:
         st.warning(f"Geocoding failed for {address}: {e}")
     return None, None
-
 
 st.title("Custom Google Maps with Your Data")
 
@@ -42,12 +41,21 @@ if uploaded_file is not None:
             # Create map centered at the first valid location
             m = folium.Map(location=[data.iloc[0]['latitude'], data.iloc[0]['longitude']], zoom_start=10)
             
+            # Define color mapping based on 'type' column
+            color_map = {
+                "Registrierung": "red",
+                "Erstbestellung": "green",
+                "Bestandskunde": "blue"
+            }
+            
             # Add markers
             for _, row in data.iterrows():
+                marker_color = color_map.get(row.get('type', 'Default'), "gray")
                 folium.Marker(
                     location=[row['latitude'], row['longitude']],
                     popup=row.get('description', 'No Description'),
-                    tooltip="Click for details"
+                    tooltip="Click for details",
+                    icon=folium.Icon(color=marker_color)
                 ).add_to(m)
             
             # Display the map
