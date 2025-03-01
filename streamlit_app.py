@@ -3,6 +3,7 @@ import pandas as pd
 from streamlit_folium import folium_static
 import folium
 from geopy.geocoders import Nominatim
+import streamlit.components.v1 as components
 
 def geocode_address(address):
     geolocator = Nominatim(user_agent="geo_app", timeout=10)
