@@ -59,12 +59,13 @@ if not data.empty:
     
     # Generate markers with colors for Google Maps
     google_markers = "".join([
-        f"var marker = new google.maps.Marker({{
+        f"""
+        var marker = new google.maps.Marker({{
             position: new google.maps.LatLng({row['latitude']}, {row['longitude']}),
             map: map,
             icon: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png'
         }});
-        "
+        """
         for _, row in data.iterrows()
     ])
     
@@ -82,7 +83,7 @@ if not data.empty:
         window.onload = initMap;
     </script>
     """
-
+    
     components.html(google_map_html, height=550)
 
 # Optional CSV upload step at the bottom
