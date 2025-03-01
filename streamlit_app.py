@@ -89,4 +89,4 @@ if uploaded_file is not None:
             st.error("No valid locations found after geocoding.")
     else
         st.error("CSV must contain an 'address' column.")
-        
+
