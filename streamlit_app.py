@@ -32,7 +32,8 @@ data = default_data.copy()
 color_map = {
     "Registrierung": "red",
     "Erstbestellung": "green",
-    "Bestandskunde": "blue"
+    "Bestandskunde": "blue",
+    "..": "orange"
 }
 
 if not data.empty:
@@ -81,7 +82,7 @@ if not data.empty:
         window.onload = initMap;
     </script>
     """
-    
+
     components.html(google_map_html, height=550)
 
 # Optional CSV upload step at the bottom
