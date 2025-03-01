@@ -5,11 +5,15 @@ import folium
 from geopy.geocoders import Nominatim
 
 def geocode_address(address):
-    geolocator = Nominatim(user_agent="geo_app")
-    location = geolocator.geocode(address)
-    if location:
-        return location.latitude, location.longitude
+    geolocator = Nominatim(user_agent="geo_app", timeout=10)  # Increase timeout
+    try:
+        location = geolocator.geocode(address)
+        if location:
+            return location.latitude, location.longitude
+    except Exception as e:
+        st.warning(f"Geocoding failed for {address}: {e}")
     return None, None
+
 
 st.title("Custom Google Maps with Your Data")
 
