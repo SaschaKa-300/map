@@ -103,7 +103,6 @@ if not data.empty:
     - **Red**: Registrierung
     - **Green**: Erstbestellung
     - **Blue**: Bestandskunde
-    - **Orange**: Unknown Type (..)
     """)
 
 # Optional CSV upload step at the bottom
