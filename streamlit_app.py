@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 from streamlit_folium import folium_static
 import folium
+import streamlit.components.v1 as components
 import requests
 import html
 
-# Function to get latitude and longitude from Google Geocode API
 def geocode_address_google(address, api_key):
     url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
     response = requests.get(url).json()
@@ -13,38 +13,6 @@ def geocode_address_google(address, api_key):
         location = response["results"][0]["geometry"]["location"]
         return location["lat"], location["lng"]
     return None, None
-
-# Function to get opening hours using Google Places API
-def get_opening_hours(lat, lng, api_key):
-    place_url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius=50&key={api_key}"
-    response = requests.get(place_url).json()
-    
-    if response['status'] == 'OK':
-        place_id = response['results'][0]['place_id']
-        details_url = f"https://maps.googleapis.com/maps/api/place/details/json?placeid={place_id}&key={api_key}"
-        details_response = requests.get(details_url).json()
-        
-        if details_response['status'] == 'OK':
-            result = details_response['result']
-            opening_hours = result.get('opening_hours', {}).get('weekday_text', [])
-            return opening_hours
-    return None
-
-# Function to get optimized route using Google Directions API
-def get_optimized_route(locations, api_key):
-    origin = locations[0]
-    waypoints = '|'.join([f"{lat},{lng}" for lat, lng in locations[1:]])
-    
-    route_url = f"https://maps.googleapis.com/maps/api/directions/json?origin={origin}&destination={origin}&waypoints=optimize:true|{waypoints}&key={api_key}"
-    response = requests.get(route_url).json()
-    
-    if response['status'] == 'OK':
-        optimized_route = []
-        for leg in response['routes'][0]['legs']:
-            for step in leg['steps']:
-                optimized_route.append(step['end_location'])
-        return optimized_route
-    return []
 
 st.title("Custom Maps with Your Data")
 
@@ -65,37 +33,12 @@ data = default_data.copy()
 color_map = {
     "Registrierung": "red",
     "Erstbestellung": "green",
-    "Bestandskunde": "blue"
+    "Bestandskunde": "blue",
+    "..": "orange"
 }
 
-# Step 1: Get Opening Hours for each location
-for index, row in data.iterrows():
-    opening_hours = get_opening_hours(row['latitude'], row['longitude'], google_maps_api_key)
-    data.at[index, 'opening_hours'] = opening_hours if opening_hours else 'No data available'
-
-st.subheader("Opening Hours for Locations")
-st.write(data[['description', 'opening_hours']])
-
-# Step 2: Get Optimized Route
-locations = [(row['latitude'], row['longitude']) for _, row in data.iterrows()]
-optimized_route = get_optimized_route(locations, google_maps_api_key)
-
-# Display the optimized route (order of locations to visit)
-st.subheader("Optimized Route to Visit Locations")
-if optimized_route:
-    optimized_order = []
-    for loc in optimized_route:
-        lat, lng = loc['lat'], loc['lng']
-        place = data.loc[(data['latitude'] == lat) & (data['longitude'] == lng), 'description'].values[0]
-        optimized_order.append(place)
-    
-    st.write("Visit the locations in the following order:")
-    st.write(" -> ".join(optimized_order))
-else:
-    st.write("No optimized route found. Please try again.")
-
-# Create the map with markers and optimized route
 if not data.empty:
+    # Create map centered at the first valid location
     m = folium.Map(location=[data.iloc[0]['latitude'], data.iloc[0]['longitude']], zoom_start=10)
     
     # Add markers to Folium map
@@ -103,18 +46,62 @@ if not data.empty:
         marker_color = color_map.get(row.get('type', 'Default'), "gray")
         folium.Marker(
             location=[row['latitude'], row['longitude']],
-            popup=f"{row['description']} - {row['opening_hours']}",
+            popup=row.get('description', 'No Description'),
             tooltip="Click for details",
-            icon=folium.Icon(color=marker_color, icon_size=(30, 30))  # Increase the size of the pins
+            icon=folium.Icon(color=marker_color)
         ).add_to(m)
-
-    # Display the optimized route (on the map as a polyline)
-    if optimized_route:
-        optimized_route_coords = [(loc['lat'], loc['lng']) for loc in optimized_route]
-        folium.PolyLine(optimized_route_coords, color='blue', weight=5, opacity=0.7).add_to(m)
     
     # Display the Folium map
     folium_static(m)
+    
+    # Embed a Google Map
+    st.subheader("Google Maps View")
+    map_center = f"{data.iloc[0]['latitude']}, {data.iloc[0]['longitude']}"
+    
+    # Generate markers with colors for Google Maps
+    google_markers = "".join([
+        f"""
+        var marker = new google.maps.Marker({{
+            position: new google.maps.LatLng({row['latitude']}, {row['longitude']}),
+            map: map,
+            icon: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png'
+        }});
+
+        var infowindow = new google.maps.InfoWindow({{
+            content: '<strong>{html.escape(row["description"])}</strong>'
+        }});
+
+        marker.addListener('click', function() {{
+            infowindow.open(map, marker);
+        }});
+        """
+        for _, row in data.iterrows()
+    ])
+    
+    google_map_html = f"""
+    <script src="https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}"></script>
+    <div id="map" style="height: 500px; width: 100%;"></div>
+    <script>
+        function initMap() {{
+            var map = new google.maps.Map(document.getElementById('map'), {{
+                zoom: 10,
+                center: new google.maps.LatLng({map_center})
+            }});
+            {google_markers}
+        }}
+        window.onload = initMap;
+    </script>
+    """
+    
+    components.html(google_map_html, height=550)
+
+    # Add a legend below the Google Map
+    st.subheader("Legend for Pin Colors")
+    st.markdown("""
+    - **Red**: Registrierung
+    - **Green**: Erstbestellung
+    - **Blue**: Bestandskunde
+    """)
 
 # Optional CSV upload step at the bottom
 st.subheader("Optional: Upload Your Own Data")
@@ -128,3 +115,4 @@ if uploaded_file is not None:
     uploaded_data = load_data(uploaded_file)
     st.write("Preview of uploaded data:")
     st.dataframe(uploaded_data.head())
+
