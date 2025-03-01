@@ -40,14 +40,14 @@ if not data.empty:
     # Create map centered at the first valid location
     m = folium.Map(location=[data.iloc[0]['latitude'], data.iloc[0]['longitude']], zoom_start=10)
     
-    # Add markers to Folium map
+    # Add markers to Folium map with larger icons
     for _, row in data.iterrows():
         marker_color = color_map.get(row.get('type', 'Default'), "gray")
         folium.Marker(
             location=[row['latitude'], row['longitude']],
             popup=row.get('description', 'No Description'),
             tooltip="Click for details",
-            icon=folium.Icon(color=marker_color)
+            icon=folium.Icon(color=marker_color, icon_size=(30, 30))  # Increase the size of the pins
         ).add_to(m)
     
     # Display the Folium map
@@ -57,13 +57,16 @@ if not data.empty:
     st.subheader("Google Maps View")
     map_center = f"{data.iloc[0]['latitude']}, {data.iloc[0]['longitude']}"
     
-    # Generate markers with colors for Google Maps
+    # Generate markers with colors for Google Maps with larger pins
     google_markers = "".join([
         f"""
         var marker = new google.maps.Marker({{
             position: new google.maps.LatLng({row['latitude']}, {row['longitude']}),
             map: map,
-            icon: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png'
+            icon: {{
+                url: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png',
+                scaledSize: new google.maps.Size(40, 40)  # Scale marker size (larger)
+            }}
         }});
 
         var infowindow = new google.maps.InfoWindow({{
@@ -93,6 +96,15 @@ if not data.empty:
     """
     
     components.html(google_map_html, height=550)
+
+    # Add a legend below the Google Map
+    st.subheader("Legend for Pin Colors")
+    st.markdown("""
+    - **Red**: Registrierung
+    - **Green**: Erstbestellung
+    - **Blue**: Bestandskunde
+    - **Orange**: Unknown Type (..)
+    """)
 
 # Optional CSV upload step at the bottom
 st.subheader("Optional: Upload Your Own Data")
