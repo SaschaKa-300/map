@@ -6,7 +6,6 @@ import streamlit.components.v1 as components
 import requests
 import html
 
-# Function to get latitude and longitude from Google Geocode API
 def geocode_address_google(address, api_key):
     url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
     response = requests.get(url).json()
@@ -15,37 +14,11 @@ def geocode_address_google(address, api_key):
         return location["lat"], location["lng"]
     return None, None
 
-# Function to get optimized route and directions from Google Routes API
-def get_route(locations, api_key):
-    url = f"https://routes.googleapis.com/directions/v2:computeRoutes?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "origin": {"location": {"latLng": {"latitude": locations[0][0], "longitude": locations[0][1]}}},
-        "destination": {"location": {"latLng": {"latitude": locations[0][0], "longitude": locations[0][1]}}},
-        "intermediates": [{"location": {"latLng": {"latitude": lat, "longitude": lng}}} for lat, lng in locations[1:]],
-        "travelMode": "DRIVE",
-        "routingPreference": "TRAFFIC_AWARE"
-    }
-    
-    response = requests.post(url, headers=headers, json=payload).json()
-    if "routes" in response:
-        route = response["routes"][0]
-        steps = []
-        polyline_points = route["polyline"]["encodedPolyline"]
-        
-        for leg in route["legs"]:
-            for step in leg["steps"]:
-                instructions = step["navigationInstruction"]["instructions"]
-                distance = step["distanceMeters"]
-                steps.append(f"{html.unescape(instructions)} ({distance} meters)")
-        
-        return steps, polyline_points
-    return [], ""
-
-st.title("Custom Maps with Optimized Route")
+st.title("Custom Maps with Your Data")
 
 google_maps_api_key = st.secrets["gmaps_key"]
 
+# Default data
 default_data = pd.DataFrame({
     "description": ["Lino's BBQ", "Lei's Küche", "Pamfilya"],
     "address": ["Malplaquetstraße 43, 13347 Berlin", "Seestraße 41, 13353 Berlin", "Luxemburger Str. 1, 13353 Berlin"],
@@ -56,36 +29,73 @@ default_data['latitude'], default_data['longitude'] = zip(*default_data['address
 
 data = default_data.copy()
 
+# Define color mapping based on 'type' column
 color_map = {
     "Registrierung": "red",
     "Erstbestellung": "green",
-    "Bestandskunde": "blue"
+    "Bestandskunde": "blue",
+    "..": "orange"
 }
 
 if not data.empty:
-    locations = [(row['latitude'], row['longitude']) for _, row in data.iterrows()]
-    steps, polyline_points = get_route(locations, google_maps_api_key)
+    # Create map centered at the first valid location
+    m = folium.Map(location=[data.iloc[0]['latitude'], data.iloc[0]['longitude']], zoom_start=10)
     
-    m = folium.Map(location=[data.iloc[0]['latitude'], data.iloc[0]['longitude']], zoom_start=12)
-    
+    # Add markers to Folium map
     for _, row in data.iterrows():
-        marker_color = color_map.get(row.get('type', 'gray'))
+        marker_color = color_map.get(row.get('type', 'Default'), "gray")
         folium.Marker(
             location=[row['latitude'], row['longitude']],
-            popup=row['description'],
-            tooltip=row['description'],
+            popup=row.get('description', 'No Description'),
+            tooltip="Click for details",
             icon=folium.Icon(color=marker_color)
         ).add_to(m)
     
-    if polyline_points:
-        folium.PolyLine(locations, color="blue", weight=5, opacity=0.7).add_to(m)
-    
+    # Display the Folium map
     folium_static(m)
     
-    st.subheader("Step-by-Step Navigation Instructions")
-    for i, step in enumerate(steps):
-        st.markdown(f"**Step {i+1}:** {step}")
+    # Embed a Google Map
+    st.subheader("Google Maps View")
+    map_center = f"{data.iloc[0]['latitude']}, {data.iloc[0]['longitude']}"
     
+    # Generate markers with colors for Google Maps
+    google_markers = "".join([
+        f"""
+        var marker = new google.maps.Marker({{
+            position: new google.maps.LatLng({row['latitude']}, {row['longitude']}),
+            map: map,
+            icon: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png'
+        }});
+
+        var infowindow = new google.maps.InfoWindow({{
+            content: '<strong>{html.escape(row["description"])}</strong>'
+        }});
+
+        marker.addListener('click', function() {{
+            infowindow.open(map, marker);
+        }});
+        """
+        for _, row in data.iterrows()
+    ])
+    
+    google_map_html = f"""
+    <script src="https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}"></script>
+    <div id="map" style="height: 500px; width: 100%;"></div>
+    <script>
+        function initMap() {{
+            var map = new google.maps.Map(document.getElementById('map'), {{
+                zoom: 10,
+                center: new google.maps.LatLng({map_center})
+            }});
+            {google_markers}
+        }}
+        window.onload = initMap;
+    </script>
+    """
+    
+    components.html(google_map_html, height=550)
+
+    # Add a legend below the Google Map
     st.subheader("Legend for Pin Colors")
     st.markdown("""
     - **Red**: Registrierung
