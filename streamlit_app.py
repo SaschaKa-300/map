@@ -4,6 +4,7 @@ from streamlit_folium import folium_static
 import folium
 import streamlit.components.v1 as components
 import requests
+import html
 
 def geocode_address_google(address, api_key):
     url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
@@ -66,7 +67,7 @@ if not data.empty:
         }});
 
         var infowindow = new google.maps.InfoWindow({{
-            content: '<strong>{row["description"]}</strong>'
+            content: '<strong>{html.escape(row["description"])}</strong>'
         }});
 
         marker.addListener('click', function() {{
