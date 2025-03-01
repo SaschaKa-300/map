@@ -32,8 +32,7 @@ data = default_data.copy()
 color_map = {
     "Registrierung": "red",
     "Erstbestellung": "green",
-    "Bestandskunde": "blue",
-    "..": "orange"
+    "Bestandskunde": "blue"
 }
 
 if not data.empty:
@@ -64,6 +63,14 @@ if not data.empty:
             position: new google.maps.LatLng({row['latitude']}, {row['longitude']}),
             map: map,
             icon: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png'
+        }});
+
+        var infowindow = new google.maps.InfoWindow({{
+            content: '<strong>{row["description"]}</strong>'
+        }});
+
+        marker.addListener('click', function() {{
+            infowindow.open(map, marker);
         }});
         """
         for _, row in data.iterrows()
