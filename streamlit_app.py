@@ -33,21 +33,22 @@ data = default_data.copy()
 color_map = {
     "Registrierung": "red",
     "Erstbestellung": "green",
-    "Bestandskunde": "blue"
+    "Bestandskunde": "blue",
+    "..": "orange"
 }
 
 if not data.empty:
     # Create map centered at the first valid location
     m = folium.Map(location=[data.iloc[0]['latitude'], data.iloc[0]['longitude']], zoom_start=10)
     
-    # Add markers to Folium map with larger icons
+    # Add markers to Folium map
     for _, row in data.iterrows():
         marker_color = color_map.get(row.get('type', 'Default'), "gray")
         folium.Marker(
             location=[row['latitude'], row['longitude']],
             popup=row.get('description', 'No Description'),
             tooltip="Click for details",
-            icon=folium.Icon(color=marker_color, icon_size=(30, 30))  # Increase the size of the pins
+            icon=folium.Icon(color=marker_color)
         ).add_to(m)
     
     # Display the Folium map
@@ -57,16 +58,13 @@ if not data.empty:
     st.subheader("Google Maps View")
     map_center = f"{data.iloc[0]['latitude']}, {data.iloc[0]['longitude']}"
     
-    # Generate markers with colors for Google Maps with larger pins
+    # Generate markers with colors for Google Maps
     google_markers = "".join([
         f"""
         var marker = new google.maps.Marker({{
             position: new google.maps.LatLng({row['latitude']}, {row['longitude']}),
             map: map,
-            icon: {{
-                url: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png',
-                scaledSize: new google.maps.Size(40, 40)  # Scale marker size (larger)
-            }}
+            icon: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png'
         }});
 
         var infowindow = new google.maps.InfoWindow({{
