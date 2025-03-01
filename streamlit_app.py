@@ -2,20 +2,20 @@ import streamlit as st
 import pandas as pd
 from streamlit_folium import folium_static
 import folium
-from geopy.geocoders import Nominatim
 import streamlit.components.v1 as components
+import requests
 
-def geocode_address(address):
-    geolocator = Nominatim(user_agent="geo_app", timeout=10)
-    try:
-        location = geolocator.geocode(address)
-        if location:
-            return location.latitude, location.longitude
-    except Exception as e:
-        st.warning(f"Geocoding failed for {address}: {e}")
+def geocode_address_google(address, api_key):
+    url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
+    response = requests.get(url).json()
+    if response["status"] == "OK":
+        location = response["results"][0]["geometry"]["location"]
+        return location["lat"], location["lng"]
     return None, None
 
 st.title("Custom Google Maps with Your Data")
+
+google_maps_api_key = st.secrets["gmaps_key"]
 
 # Upload CSV file
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
@@ -32,8 +32,8 @@ if uploaded_file is not None:
     # Ensure required column exists
     if 'address' in data.columns:
         
-        # Convert addresses to coordinates
-        data['latitude'], data['longitude'] = zip(*data['address'].apply(geocode_address))
+        # Convert addresses to coordinates using Google Maps API
+        data['latitude'], data['longitude'] = zip(*data['address'].apply(lambda x: geocode_address_google(x, google_maps_api_key)))
         
         # Filter out rows where geocoding failed
         data = data.dropna(subset=['latitude', 'longitude'])
@@ -49,7 +49,7 @@ if uploaded_file is not None:
                 "Bestandskunde": "blue"
             }
             
-            # Add markers
+            # Add markers to Folium map
             for _, row in data.iterrows():
                 marker_color = color_map.get(row.get('type', 'Default'), "gray")
                 folium.Marker(
@@ -59,14 +59,23 @@ if uploaded_file is not None:
                     icon=folium.Icon(color=marker_color)
                 ).add_to(m)
             
-            # Display the map
+            # Display the Folium map
             folium_static(m)
-
+            
             # Embed a Google Map
             st.subheader("Google Maps View")
-            google_maps_api_key = st.secrets["gmaps_key"]
             map_center = f"{data.iloc[0]['latitude']}, {data.iloc[0]['longitude']}"
-            markers_js = "".join([f"new google.maps.Marker({{position: new google.maps.LatLng({row['latitude']}, {row['longitude']}), map: map}});" for _, row in data.iterrows()])
+            
+            # Generate markers with colors for Google Maps
+            google_markers = "".join([
+                f"var marker = new google.maps.Marker({{
+                    position: new google.maps.LatLng({row['latitude']}, {row['longitude']}),
+                    map: map,
+                    icon: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png'
+                }});
+                "
+                for _, row in data.iterrows()
+            ])
             
             google_map_html = f"""
             <script src="https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}"></script>
@@ -77,17 +86,14 @@ if uploaded_file is not None:
                         zoom: 10,
                         center: new google.maps.LatLng({map_center})
                     }});
-                    {markers_js}
+                    {google_markers}
                 }}
                 window.onload = initMap;
             </script>
             """
             
             components.html(google_map_html, height=550)
-
-
         else:
             st.error("No valid locations found after geocoding.")
     else:
         st.error("CSV must contain an 'address' column.")
-
