@@ -15,36 +15,37 @@ def geocode_address_google(address, api_key):
         return location["lat"], location["lng"]
     return None, None
 
-# Function to get optimized route and directions from Google Directions API
-def get_directions(locations, api_key):
-    origin = f"{locations[0][0]},{locations[0][1]}"
-    waypoints = '|'.join([f"{lat},{lng}" for lat, lng in locations[1:]])
-    destination = origin  # Assume round-trip
+# Function to get optimized route and directions from Google Routes API
+def get_route(locations, api_key):
+    url = f"https://routes.googleapis.com/directions/v2:computeRoutes?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "origin": {"location": {"latLng": {"latitude": locations[0][0], "longitude": locations[0][1]}}},
+        "destination": {"location": {"latLng": {"latitude": locations[0][0], "longitude": locations[0][1]}}},
+        "intermediates": [{"location": {"latLng": {"latitude": lat, "longitude": lng}}} for lat, lng in locations[1:]],
+        "travelMode": "DRIVE",
+        "routingPreference": "TRAFFIC_AWARE"
+    }
     
-    directions_url = f"https://maps.googleapis.com/maps/api/directions/json?origin={origin}&destination={destination}&waypoints=optimize:true|{waypoints}&key={api_key}"
-    response = requests.get(directions_url).json()
-    
-    if response['status'] == 'OK':
-        route = response['routes'][0]
-        optimized_order = route['waypoint_order']  # Optimized order of locations
+    response = requests.post(url, headers=headers, json=payload).json()
+    if "routes" in response:
+        route = response["routes"][0]
         steps = []
-        polyline_points = route['overview_polyline']['points']
+        polyline_points = route["polyline"]["encodedPolyline"]
         
-        for leg in route['legs']:
-            for step in leg['steps']:
-                instructions = step['html_instructions']  # HTML-formatted instructions
-                distance = step['distance']['text']
-                duration = step['duration']['text']
-                steps.append(f"{html.unescape(instructions)} ({distance}, {duration})")
+        for leg in route["legs"]:
+            for step in leg["steps"]:
+                instructions = step["navigationInstruction"]["instructions"]
+                distance = step["distanceMeters"]
+                steps.append(f"{html.unescape(instructions)} ({distance} meters)")
         
-        return optimized_order, steps, polyline_points
-    return [], [], ""
+        return steps, polyline_points
+    return [], ""
 
-st.title("Custom Maps with Navigation")
+st.title("Custom Maps with Optimized Route")
 
 google_maps_api_key = st.secrets["gmaps_key"]
 
-# Default data
 default_data = pd.DataFrame({
     "description": ["Lino's BBQ", "Lei's Küche", "Pamfilya"],
     "address": ["Malplaquetstraße 43, 13347 Berlin", "Seestraße 41, 13353 Berlin", "Luxemburger Str. 1, 13353 Berlin"],
@@ -55,111 +56,36 @@ default_data['latitude'], default_data['longitude'] = zip(*default_data['address
 
 data = default_data.copy()
 
-# Define color mapping based on 'type' column
 color_map = {
     "Registrierung": "red",
     "Erstbestellung": "green",
-    "Bestandskunde": "blue",
-    "..": "orange"
+    "Bestandskunde": "blue"
 }
 
 if not data.empty:
-    # Create a list of locations (latitude, longitude)
     locations = [(row['latitude'], row['longitude']) for _, row in data.iterrows()]
+    steps, polyline_points = get_route(locations, google_maps_api_key)
     
-    # Get optimized route and directions
-    optimized_order, steps, polyline_points = get_directions(locations, google_maps_api_key)
-    
-    # Create map centered at the first valid location
     m = folium.Map(location=[data.iloc[0]['latitude'], data.iloc[0]['longitude']], zoom_start=12)
     
-    # Add markers in the optimized order
-    for idx, loc_idx in enumerate(optimized_order):
-        row = data.iloc[loc_idx]
-        marker_color = color_map.get(row.get('type', 'Default'), "gray")
+    for _, row in data.iterrows():
+        marker_color = color_map.get(row.get('type', 'gray'))
         folium.Marker(
             location=[row['latitude'], row['longitude']],
-            popup=f"{row['description']} - Stop {idx+1}",
-            tooltip=f"Stop {idx+1}: {row['description']}",
+            popup=row['description'],
+            tooltip=row['description'],
             icon=folium.Icon(color=marker_color)
         ).add_to(m)
-
-    # Add route polyline
+    
     if polyline_points:
         folium.PolyLine(locations, color="blue", weight=5, opacity=0.7).add_to(m)
-
-    # Display the Folium map
+    
     folium_static(m)
     
-    # Display navigation instructions
     st.subheader("Step-by-Step Navigation Instructions")
     for i, step in enumerate(steps):
         st.markdown(f"**Step {i+1}:** {step}")
-
-    # Embed a Google Map with route visualization
-    st.subheader("Google Maps View")
-    map_center = f"{data.iloc[0]['latitude']}, {data.iloc[0]['longitude']}"
     
-    # Generate markers for Google Maps
-    google_markers = "".join([
-        f"""
-        var marker{idx} = new google.maps.Marker({{
-            position: new google.maps.LatLng({row['latitude']}, {row['longitude']}),
-            map: map,
-            icon: 'http://maps.google.com/mapfiles/ms/icons/{color_map.get(row.get('type', 'Default'), 'gray')}-dot.png'
-        }});
-
-        var infowindow{idx} = new google.maps.InfoWindow({{
-            content: '<strong>Stop {idx+1}: {html.escape(row["description"])}</strong>'
-        }});
-
-        marker{idx}.addListener('click', function() {{
-            infowindow{idx}.open(map, marker{idx});
-        }});
-        """
-        for idx, row in data.iterrows()
-    ])
-    
-    google_map_html = f"""
-    <script src="https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}"></script>
-    <div id="map" style="height: 500px; width: 100%;"></div>
-    <script>
-        function initMap() {{
-            var map = new google.maps.Map(document.getElementById('map'), {{
-                zoom: 12,
-                center: new google.maps.LatLng({map_center})
-            }});
-            {google_markers}
-
-            var directionsService = new google.maps.DirectionsService();
-            var directionsRenderer = new google.maps.DirectionsRenderer();
-            directionsRenderer.setMap(map);
-            
-            var waypoints = [
-                {",".join([f"{{ location: new google.maps.LatLng({lat}, {lng}), stopover: true }}" for lat, lng in locations[1:-1]])}
-            ];
-            
-            var request = {{
-                origin: new google.maps.LatLng({locations[0][0]}, {locations[0][1]}),
-                destination: new google.maps.LatLng({locations[0][0]}, {locations[0][1]}),
-                waypoints: waypoints,
-                travelMode: 'DRIVING',
-                optimizeWaypoints: true
-            }};
-            
-            directionsService.route(request, function(result, status) {{
-                if (status == 'OK') {{
-                    directionsRenderer.setDirections(result);
-                }}
-            }});
-        }}
-        window.onload = initMap;
-    </script>
-    """
-    
-    components.html(google_map_html, height=550)
-
-    # Add a legend below the Google Map
     st.subheader("Legend for Pin Colors")
     st.markdown("""
     - **Red**: Registrierung
