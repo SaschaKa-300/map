@@ -60,7 +60,33 @@ if uploaded_file is not None:
             
             # Display the map
             folium_static(m)
+
+            # Embed a Google Map
+            st.subheader("Google Maps View")
+            google_maps_api_key = st.secrets["gmaps_key"]
+            map_center = f"{data.iloc[0]['latitude']}, {data.iloc[0]['longitude']}"
+            markers_js = "".join([f"new google.maps.Marker({{position: new google.maps.LatLng({row['latitude']}, {row['longitude']}), map: map}});" for _, row in data.iterrows()])
+            
+            google_map_html = f"""
+            <script src="https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}"></script>
+            <div id="map" style="height: 500px; width: 100%;"></div>
+            <script>
+                function initMap() {{
+                    var map = new google.maps.Map(document.getElementById('map'), {{
+                        zoom: 10,
+                        center: new google.maps.LatLng({map_center})
+                    }});
+                    {markers_js}
+                }}
+                window.onload = initMap;
+            </script>
+            """
+            
+            components.html(google_map_html, height=550)
+
+
         else:
             st.error("No valid locations found after geocoding.")
-    else:
+    else
         st.error("CSV must contain an 'address' column.")
+        
