@@ -1,19 +1,37 @@
-# 🎈 Blank app template
+# Route Planning App
 
-A simple Streamlit app template for you to modify!
+A Streamlit application for visualizing locations on custom maps with Google Maps integration.
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+## Features
 
-### How to run it on your own machine
+- Display locations on interactive maps (Folium and Google Maps)
+- Color-coded markers based on location type
+- CSV file upload support
+- Geocoding using Google Maps API
+
+## Local Development
 
 1. Install the requirements
 
    ```
-   $ pip install -r requirements.txt
+   pip install -r requirements.txt
    ```
 
-2. Run the app
+2. Set up your Google Maps API key
+
+   Create a `.streamlit/secrets.toml` file:
+   ```toml
+   gmaps_key = "your-google-maps-api-key"
+   ```
+
+3. Run the app
 
    ```
-   $ streamlit run streamlit_app.py
+   streamlit run streamlit_app.py
    ```
+
+## Deployment
+
+This app is configured for deployment to Google Cloud Run via GitHub Actions.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.

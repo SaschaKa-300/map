@@ -5,6 +5,7 @@ import folium
 import streamlit.components.v1 as components
 import requests
 import html
+import os
 
 def geocode_address_google(address, api_key):
     url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}"
@@ -16,7 +17,14 @@ def geocode_address_google(address, api_key):
 
 st.title("Custom Maps with Your Data")
 
-google_maps_api_key = st.secrets["gmaps_key"]
+# Get API key from environment variable (Cloud Run) or Streamlit secrets (local)
+google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+if not google_maps_api_key:
+    try:
+        google_maps_api_key = st.secrets["gmaps_key"]
+    except:
+        st.error("Please set GOOGLE_MAPS_API_KEY environment variable or configure Streamlit secrets")
+        st.stop()
 
 # Default data
 default_data = pd.DataFrame({
